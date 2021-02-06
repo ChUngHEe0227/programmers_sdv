@@ -7,7 +7,7 @@ L = 3.0
 
 
 class LateralPlant(object):
-    def __init__(self, x=0.0, y=0.0, yaw=0.0, v=0.0):
+    def __init__(self, x=0.0, y=0.0, yaw= 0.0, v=0.0):
         self.x = x
         self.y = y
         self.yaw = yaw
@@ -26,11 +26,11 @@ class LateralPlant(object):
 
 
 if __name__ == "__main__":
-    plant = LateralPlant(x=0.0, y=0.0, yaw=0.0, v=1.0)
+    plant = LateralPlant(x=0.0, y=0.0, yaw=-2.0, v=2.0)
     target_y = 1.0
-    kp = 0.4
+    kp = 1.0
     kd = 2.0
-    ki = 0.003
+    ki = 0.005
 
     ys = []
     ts = []
@@ -42,7 +42,7 @@ if __name__ == "__main__":
         error = plant.y - target_y
 
         diff_error = error - prev_error
-        prev_error = error
+        prev_error = error 
         int_error += error
 
         steer = - kp * error - kd * diff_error/dt - ki * int_error

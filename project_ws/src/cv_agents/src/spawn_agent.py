@@ -14,7 +14,8 @@ from scipy.interpolate import interp1d
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Quaternion
 from object_msgs.msg import Object
-
+from stanley import stanley_control
+#from optimal_trajectory_Frenet
 import pickle
 import argparse
 
@@ -26,6 +27,9 @@ rn_id = dict()
 rn_id[5] = {
     'left': [18, 2, 11, 6, 13, 8, 15, 10, 26, 0]  # ego route
 }
+
+dt = 0.1
+L = 3.0
 
 def pi_2_pi(angle):
     return (angle + math.pi) % (2 * math.pi) - math.pi
@@ -62,7 +66,7 @@ def interpolate_waypoints(wx, wy, space=0.5):
     }
 
 
-class State:
+class State :
 
     def __init__(self, x=0.0, y=0.0, yaw=0.0, v=0.0, dt=0.1, WB=2.6):
         self.x = x
@@ -73,7 +77,7 @@ class State:
         self.rear_y = self.y - ((WB / 2) * math.sin(self.yaw))
         self.dt = dt
         self.WB = WB
-
+    
     def update(self, a, delta):
         dt = self.dt
         WB = self.WB
@@ -85,6 +89,7 @@ class State:
         self.v += a * dt
         self.rear_x = self.x - ((WB / 2) * math.cos(self.yaw))
         self.rear_y = self.y - ((WB / 2) * math.sin(self.yaw))
+
 
     def calc_distance(self, point_x, point_y):
         dx = self.rear_x - point_x
@@ -153,7 +158,7 @@ if __name__ == "__main__":
     start_node_id = args.route
     route_id_list = [start_node_id] + rn_id[start_node_id][args.dir]
 
-    ind = 100
+    ind = 10
 
     with open(path + "/src/route.pkl", "rb") as f:
         nodes = pickle.load(f)
@@ -165,22 +170,23 @@ if __name__ == "__main__":
         wx.append(nodes[_id]["x"][1:])
         wy.append(nodes[_id]["y"][1:])
         wyaw.append(nodes[_id]["yaw"][1:])
+
     wx = np.concatenate(wx)
     wy = np.concatenate(wy)
     wyaw = np.concatenate(wyaw)
 
     waypoints = {"x": wx, "y": wy, "yaw": wyaw}
-
-    target_speed = 20.0 / 3.6
-    state = State(x=waypoints["x"][ind], y=waypoints["y"][ind], yaw=waypoints["yaw"][ind], v=0.1, dt=0.01)
+    target_speed = 40 / 3.6
+    state = State(x=waypoints["x"][ind], y=waypoints["y"][ind], yaw=waypoints["yaw"][ind], v=1, dt=0.01)
 
     r = rospy.Rate(100)
     while not rospy.is_shutdown():
         # generate acceleration ai, and steering di
         # YOUR CODE HERE
-        ai = 0.0
-        di = 0.0
-
+        speed_error = target_speed - state.v
+        ai = speed_error * 0.5 
+        di = stanley_control(state.x,state.y,state.yaw,state.v,waypoints["x"], waypoints["y"], waypoints["yaw"])
+  
         # update state with acc, delta
         state.update(ai, di)
 

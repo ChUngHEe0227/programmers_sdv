@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 # paramters
 dt = 0.1
 
-k = 0.5  # control gain
+k = 50  # control gain
 
 # GV70 PARAMETERS
 LENGTH = 4.715
@@ -12,7 +12,7 @@ WIDTH = 1.910
 L = 2.875
 BACKTOWHEEL = 1.0
 WHEEL_LEN = 0.3  # [m]
-WHEEL_WIDTH = 0.2  # [m]
+WHEEL_WIDTH = 0.2  # [m] 
 TREAD = 0.8  # [m]
 
 class VehicleModel(object):
@@ -22,7 +22,7 @@ class VehicleModel(object):
         self.yaw = yaw
         self.v = v
 
-        self.max_steering = np.radians(30)
+        self.max_steering = np.radians(30) 
 
     def update(self, steer, a=0):
         steer = np.clip(steer, -self.max_steering, self.max_steering)
@@ -87,7 +87,7 @@ map_ys = np.ones_like(map_xs) * target_y
 map_yaws = np.ones_like(map_xs) * 0.0
 
 # vehicle
-model = VehicleModel(x=0.0, y=0.0, yaw=0.0, v=2.0)
+model = VehicleModel(x=0.0, y=0.0, yaw=0.78, v=2.0)
 steer = 0
 
 

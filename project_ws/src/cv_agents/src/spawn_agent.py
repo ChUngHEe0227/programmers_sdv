@@ -15,7 +15,7 @@ from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Quaternion
 from object_msgs.msg import Object
 from stanley import stanley_control
-#from optimal_trajectory_Frenet
+from optimal_trajectory_Frenet import test
 import pickle
 import argparse
 
@@ -167,33 +167,46 @@ if __name__ == "__main__":
     wy = []
     wyaw = []
     for _id in route_id_list:
-        wx.append(nodes[_id]["x"][1:])
-        wy.append(nodes[_id]["y"][1:])
+        wx.append(np.round(nodes[_id]["x"][1:],4))
+        wy.append(np.round(nodes[_id]["y"][1:],4))
         wyaw.append(nodes[_id]["yaw"][1:])
 
     wx = np.concatenate(wx)
     wy = np.concatenate(wy)
     wyaw = np.concatenate(wyaw)
-
     waypoints = {"x": wx, "y": wy, "yaw": wyaw}
-    target_speed = 40 / 3.6
-    state = State(x=waypoints["x"][ind], y=waypoints["y"][ind], yaw=waypoints["yaw"][ind], v=1, dt=0.01)
+    
+    path = test(wx,wy,waypoints["x"][ind],waypoints["y"][ind])
+    mwx = []
+    mwy = []
+    mwyaw = []
+    for _id in range(460):
+        mwx.append(path[_id][0])
+        mwy.append(path[_id][1])
+        mwyaw.append(path[_id][2])
+    points = {"x": mwx, "y": mwy, "yaw": mwyaw}
+ 
+   
+
+    target_speed = 10
+    state = State(x=points["x"][ind], y=points["y"][ind], yaw=points["yaw"][ind], v=1, dt=0.01)
 
     r = rospy.Rate(100)
     while not rospy.is_shutdown():
         # generate acceleration ai, and steering di
         # YOUR CODE HERE
+    
         speed_error = target_speed - state.v
         ai = speed_error * 0.5 
-        di = stanley_control(state.x,state.y,state.yaw,state.v,waypoints["x"], waypoints["y"], waypoints["yaw"])
-  
+        di = stanley_control(state.x,state.y,state.yaw,state.v,points["x"], points["y"], points["yaw"])
+     
         # update state with acc, delta
         state.update(ai, di)
-
         # vehicle state --> topic msg
         msg = get_ros_msg(state.x, state.y, state.yaw, state.v, id=id)
 
         # send tf
+      
         tf_broadcaster.sendTransform(
             (state.x, state.y, 1.5),
             msg["quaternion"],

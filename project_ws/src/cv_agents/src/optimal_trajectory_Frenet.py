@@ -9,28 +9,19 @@ import math
 from numpy import *
 from matplotlib import *
 
-with open('./map/map_coord_proto2.pkl', 'rb') as f:
-    map_coord = pickle.load(f)
-
-map_in = map_coord['Lane_inner']
-map_center = map_coord['Lane_center']
-map_out = map_coord['Lane_outer']
-wp_in = map_coord['waypoint_inner']
-wp_out = map_coord['waypoint_outer']
-
 
 # initialize
-V_MAX = 2      # maximum velocity [m/s]
+V_MAX = 12      # maximum velocity [m/s]
 ACC_MAX = 2 # maximum acceleration [m/ss]
-K_MAX = 4     # maximum curvature [1/m]
+K_MAX = 10     # maximum curvature [1/m]
 
-TARGET_SPEED = 1 # target speed [m/s]
-LANE_WIDTH = 0.39  # lane width [m]
+TARGET_SPEED = 10 # target speed [m/s]
+LANE_WIDTH = 1.4  # lane width [m]
 
-COL_CHECK = 0.25 # collision check distance [m]
+COL_CHECK = 1.0 # collision check distance [m]
 
 MIN_T = 1 # minimum terminal time [s]
-MAX_T = 2 # maximum terminal time [s]
+MAX_T = 4 # maximum terminal time [s]
 DT_T = 0.5 # dt for terminal time [s] : MIN_T 에서 MAX_T 로 어떤 dt 로 늘려갈지를 나타냄
 DT = 0.1 # timestep for update
 
@@ -42,20 +33,13 @@ K_V = 1.0 # weight for getting to target speed
 K_LAT = 1.0 # weight for lateral direction
 K_LON = 1.0 # weight for longitudinal direction
 
-SIM_STEP = 100 # simulation step
-SHOW_ANIMATION = True # plot 으로 결과 보여줄지 말지
+SIM_STEP = 1000 # simulation step
 
 # Vehicle parameters - plot 을 위한 파라미터
-LENGTH = 0.39  # [m]
-WIDTH = 0.19  # [m]
-BACKTOWHEEL = 0.1  # [m]
-WHEEL_LEN = 0.03  # [m]
-WHEEL_WIDTH = 0.02  # [m]
-TREAD = 0.07  # [m]
-WB = 0.22  # [m]
+
 
 # lateral planning 시 terminal position condition 후보  (양 차선 중앙)
-DF_SET = np.array([LANE_WIDTH/2, -LANE_WIDTH/2])
+DF_SET = np.array([LANE_WIDTH, -LANE_WIDTH])
 
 def next_waypoint(x, y, mapx, mapy):
     closest_wp = get_closest_waypoints(x, y, mapx, mapy)
@@ -64,12 +48,12 @@ def next_waypoint(x, y, mapx, mapy):
     ego_vec = [x - mapx[closest_wp], y - mapy[closest_wp]]
 
     direction  = np.sign(np.dot(map_vec, ego_vec))
-
+    
     if direction >= 0:
         next_wp = closest_wp + 1
     else:
         next_wp = closest_wp
-
+    
     return next_wp
 
 
@@ -127,8 +111,8 @@ def get_frenet(x, y, mapx, mapy):
 def get_cartesian(s, d, mapx, mapy, maps):
     prev_wp = 0
 
-    s = np.mod(s, maps[-2])
-
+    #s = np.mod(s, maps[-2])
+    
     while(s > maps[prev_wp+1]) and (prev_wp < len(maps)-2):
         prev_wp = prev_wp + 1
 
@@ -329,6 +313,7 @@ def calc_global_paths(fplist, mapx, mapy, maps):
         for i in range(len(fp.s)):
             _s = fp.s[i]
             _d = fp.d[i]
+          
             _x, _y, _ = get_cartesian(_s, _d, mapx, mapy, maps)
             fp.x.append(_x)
             fp.y.append(_y)
@@ -352,15 +337,17 @@ def calc_global_paths(fplist, mapx, mapy, maps):
 
 
 def collision_check(fp, obs, mapx, mapy, maps):
-    for i in range(len(obs[:, 0])):
+    for i in range(len(obs)):
         # get obstacle's position (x,y)
-        obs_xy = get_cartesian( obs[i, 0], obs[i, 1], mapx, mapy, maps)
 
-        d = [((_x - obs_xy[0]) ** 2 + (_y - obs_xy[1]) ** 2)
+        d = []
+        mind = 10000 
+        minx = 0
+        miny = 0
+        d = [math.sqrt(((_x - obs[i][0]) ** 2 + (_y - obs[i][1]) ** 2))
              for (_x, _y) in zip(fp.x, fp.y)]
-
-        collision = any([di <= COL_CHECK ** 2 for di in d])
-
+        collision = any([di <= COL_CHECK for di in d])
+       
         if collision:
             return True
 
@@ -370,16 +357,16 @@ def collision_check(fp, obs, mapx, mapy, maps):
 def check_path(fplist, obs, mapx, mapy, maps):
     ok_ind = []
     for i, _path in enumerate(fplist):
+     
         acc_squared = [(abs(a_s**2 + a_d**2)) for (a_s, a_d) in zip(_path.s_dd, _path.d_dd)]
+        
         if any([v > V_MAX for v in _path.s_d]):  # Max speed check
             continue
-        elif any([acc > ACC_MAX**2 for acc in acc_squared]):
-            continue
+      
         elif any([abs(kappa) > K_MAX for kappa in fplist[i].kappa]):  # Max curvature check
             continue
-        elif collision_check(_path, obs, mapx, mapy, maps):
+        elif collision_check(_path, obs, mapx, mapy, maps):  
             continue
-
         ok_ind.append(i)
 
     return [fplist[i] for i in ok_ind]
@@ -388,8 +375,8 @@ def check_path(fplist, obs, mapx, mapy, maps):
 def frenet_optimal_planning(si, si_d, si_dd, sf_d, sf_dd, di, di_d, di_dd, df_d, df_dd, obs, mapx, mapy, maps, opt_d):
     fplist = calc_frenet_paths(si, si_d, si_dd, sf_d, sf_dd, di, di_d, di_dd, df_d, df_dd, opt_d)
     fplist = calc_global_paths(fplist, mapx, mapy, maps)
-
     fplist = check_path(fplist, obs, mapx, mapy, maps)
+    
     # find minimum cost path
     min_cost = float("inf")
     opt_traj = None
@@ -410,97 +397,40 @@ def frenet_optimal_planning(si, si_d, si_dd, sf_d, sf_dd, di, di_d, di_dd, df_d,
 
 
 
-def plot_car(x, y, yaw, steer=0.0, cabcolor="-r", truckcolor="-k"):  # pragma: no cover
-
-    outline = np.array([[-BACKTOWHEEL, (LENGTH - BACKTOWHEEL), (LENGTH - BACKTOWHEEL), -BACKTOWHEEL, -BACKTOWHEEL],
-                        [WIDTH / 2, WIDTH / 2, - WIDTH / 2, -WIDTH / 2, WIDTH / 2]])
-
-    fr_wheel = np.array([[WHEEL_LEN, -WHEEL_LEN, -WHEEL_LEN, WHEEL_LEN, WHEEL_LEN],
-                         [-WHEEL_WIDTH - TREAD, -WHEEL_WIDTH - TREAD, WHEEL_WIDTH - TREAD, WHEEL_WIDTH - TREAD, -WHEEL_WIDTH - TREAD]])
-
-    rr_wheel = np.copy(fr_wheel)
-
-    fl_wheel = np.copy(fr_wheel)
-    fl_wheel[1, :] *= -1
-    rl_wheel = np.copy(rr_wheel)
-    rl_wheel[1, :] *= -1
-
-    Rot1 = np.array([[math.cos(yaw), math.sin(yaw)],
-                     [-math.sin(yaw), math.cos(yaw)]])
-    Rot2 = np.array([[math.cos(steer), math.sin(steer)],
-                     [-math.sin(steer), math.cos(steer)]])
-
-    fr_wheel = (fr_wheel.T.dot(Rot2)).T
-    fl_wheel = (fl_wheel.T.dot(Rot2)).T
-    fr_wheel[0, :] += WB
-    fl_wheel[0, :] += WB
-
-    fr_wheel = (fr_wheel.T.dot(Rot1)).T
-    fl_wheel = (fl_wheel.T.dot(Rot1)).T
-
-    outline = (outline.T.dot(Rot1)).T
-    rr_wheel = (rr_wheel.T.dot(Rot1)).T
-    rl_wheel = (rl_wheel.T.dot(Rot1)).T
-
-    outline[0, :] += x
-    outline[1, :] += y
-    fr_wheel[0, :] += x
-    fr_wheel[1, :] += y
-    rr_wheel[0, :] += x
-    rr_wheel[1, :] += y
-    fl_wheel[0, :] += x
-    fl_wheel[1, :] += y
-    rl_wheel[0, :] += x
-    rl_wheel[1, :] += y
-
-    plt.plot(np.array(outline[0, :]).flatten(),
-             np.array(outline[1, :]).flatten(), truckcolor)
-    plt.plot(np.array(fr_wheel[0, :]).flatten(),
-             np.array(fr_wheel[1, :]).flatten(), truckcolor)
-    plt.plot(np.array(rr_wheel[0, :]).flatten(),
-             np.array(rr_wheel[1, :]).flatten(), truckcolor)
-    plt.plot(np.array(fl_wheel[0, :]).flatten(),
-             np.array(fl_wheel[1, :]).flatten(), truckcolor)
-    plt.plot(np.array(rl_wheel[0, :]).flatten(),
-             np.array(rl_wheel[1, :]).flatten(), truckcolor)
-    plt.plot(x, y, "*")
-
-def test():
+def test(wayx,wayy,rx,ry):
     # map waypoints
-    mapx = map_center[:,0]
-    mapy = map_center[:,1]
-
+    
+    mapx = wayx
+    mapy = wayy
     # static obstacles
-    obs = np.array([[3.0, WIDTH],
-                   [5, -WIDTH],
-                   [7, WIDTH],
-                   [8.5, -WIDTH]
+    obs = np.array([[45.4,31.7],[47.3,29.5],
+                   [25.578,-9.733]
                    ])
 
     # get maps
     maps = np.zeros(mapx.shape)
-    for i in range(len(mapx)):
+    for i in range(len(mapx)-3):
         x = mapx[i]
         y = mapy[i]
         sd = get_frenet(x, y, mapx, mapy)
         maps[i] = sd[0]
 
     # get global position info. of static obstacles
+    
     obs_global = np.zeros(obs.shape)
     for i in range(len(obs[:,0])):
         _s = obs[i,0]
         _d = obs[i,1]
         xy = get_cartesian(_s, _d, mapx, mapy, maps)
         obs_global[i] = xy[:-1]
-
     # 자챠량 관련 initial condition
-    x = -LANE_WIDTH
-    y = 0
+    x = rx
+    y = ry
     yaw = 90 * np.pi/180
-    v = 0.5
-    a = 0
+    v = 1
+    a = 0.0
 
-    s, d = get_frenet(x, y, mapx, mapy);
+    s, d = get_frenet(x, y, mapx, mapy)
     x, y, yaw_road = get_cartesian(s, d, mapx, mapy, maps)
     yawi = yaw - yaw_road
 
@@ -519,11 +449,13 @@ def test():
     df_dd = 0
 
     opt_d = di
-
+    route = []
     # 시뮬레이션 수행 (SIM_STEP 만큼)
     plt.figure(figsize=(7,10))
+    b_opt_index = 0
+    count = 0
     for step in range(SIM_STEP):
-
+       
         # optimal planning 수행 (output : valid path & optimal path index)
         path, opt_ind = frenet_optimal_planning(si, si_d, si_dd,
                                                 sf_d, sf_dd, di, di_d, di_dd, df_d, df_dd, obs, mapx, mapy, maps, opt_d)
@@ -533,50 +465,19 @@ def test():
         본 파트에서는 planning 만 수행하고 control 은 따로 수행하지 않으므로,
         optimal trajectory 중 현재 위치에서 한개 뒤 index 를 다음 step 의 초기초건으로 사용.
         '''
+    
         si = path[0].s[1]
         si_d = path[0].s_d[1]
         si_dd = path[0].s_dd[1]
         di = path[0].d[1]
         di_d = path[0].d_d[1]
         di_dd = path[0].d_dd[1]
-
+        
+        route.append([path[opt_ind].x[0], path[opt_ind].y[0],path[opt_ind].yaw[0]])
         # consistency cost를 위해 update
         opt_d = path[opt_ind].d[-1]
-
-        if SHOW_ANIMATION:  # pragma: no cover
-
-            plt.cla()
-            # for stopping simulation with the esc key.
-            plt.gcf().canvas.mpl_connect(
-                'key_release_event',
-                lambda event: [exit(0) if event.key == 'escape' else None])
-
-            plt.plot(map_center[:,0], map_center[:,1], 'k', linewidth=2)
-            plt.plot(map_in[:,0], map_in[:,1], 'k', linewidth=2)
-            plt.plot(map_out[:,0], map_out[:,1], 'k', linewidth=2)
-            plt.plot(wp_in[:,0], wp_in[:,1], color='slategray', linewidth=2, alpha=0.5)
-            plt.plot(wp_out[:,0], wp_out[:,1], color='slategray', linewidth=2, alpha=0.5)
-
-            # plot obstacle
-            for ob in obs_global:
-                plt.plot(ob[0], ob[1], "s", color="crimson", MarkerSize=15, alpha=0.6)
-
-            for i in range(len(path)):
-                    plt.plot(path[i].x, path[i].y, "-", color="crimson", linewidth=1.5, alpha=0.6)
-
-            plt.plot(path[opt_ind].x, path[opt_ind].y, "o-", color="dodgerblue", linewidth=3)
-
-            # plot car
-            plot_car(path[opt_ind].x[0], path[opt_ind].y[0], path[opt_ind].yaw[0], steer=0)
-
-            plt.axis('equal')
-            plt.title("[Simulation] v : " + str(si_d)[0:4] + " m/s")
-            plt.grid(True)
-            plt.xlabel("X [m]")
-            plt.ylabel("Y [m]")
-
-            plt.pause(0.01)
-            # input("Press enter to continue...")
+    return route
+      
 
 
 if __name__ == "__main__":

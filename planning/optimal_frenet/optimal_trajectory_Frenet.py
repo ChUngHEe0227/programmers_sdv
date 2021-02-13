@@ -454,7 +454,7 @@ def plot_car(x, y, yaw, steer=0.0, cabcolor="-r", truckcolor="-k"):  # pragma: n
     rl_wheel[1, :] += y
 
     plt.plot(np.array(outline[0, :]).flatten(),
-             np.array(outline[1, :]).flatten(), truckcolor)
+             np.array(outline[1, :]).flatten(), "black")
     plt.plot(np.array(fr_wheel[0, :]).flatten(),
              np.array(fr_wheel[1, :]).flatten(), truckcolor)
     plt.plot(np.array(rr_wheel[0, :]).flatten(),
@@ -463,17 +463,16 @@ def plot_car(x, y, yaw, steer=0.0, cabcolor="-r", truckcolor="-k"):  # pragma: n
              np.array(fl_wheel[1, :]).flatten(), truckcolor)
     plt.plot(np.array(rl_wheel[0, :]).flatten(),
              np.array(rl_wheel[1, :]).flatten(), truckcolor)
-    plt.plot(x, y, "*")
+    plt.plot(x, y, "*",'blue')
 
 def test():
     # map waypoints
     mapx = map_center[:,0]
     mapy = map_center[:,1]
-
     # static obstacles
-    obs = np.array([[3.0, WIDTH],
-                   [5, -WIDTH],
-                   [7, WIDTH],
+    obs = np.array([[1.0, WIDTH],
+                   [9, -WIDTH],
+                   [3, WIDTH],
                    [8.5, -WIDTH]
                    ])
 
@@ -497,7 +496,7 @@ def test():
     x = -LANE_WIDTH
     y = 0
     yaw = 90 * np.pi/180
-    v = 0.5
+    v = 10
     a = 0
 
     s, d = get_frenet(x, y, mapx, mapy);
@@ -542,7 +541,7 @@ def test():
 
         # consistency cost를 위해 update
         opt_d = path[opt_ind].d[-1]
-
+   
         if SHOW_ANIMATION:  # pragma: no cover
 
             plt.cla()
@@ -551,9 +550,9 @@ def test():
                 'key_release_event',
                 lambda event: [exit(0) if event.key == 'escape' else None])
 
-            plt.plot(map_center[:,0], map_center[:,1], 'k', linewidth=2)
-            plt.plot(map_in[:,0], map_in[:,1], 'k', linewidth=2)
-            plt.plot(map_out[:,0], map_out[:,1], 'k', linewidth=2)
+            plt.plot(map_center[:,0], map_center[:,1], color='blue', linewidth=2)
+            plt.plot(map_in[:,0], map_in[:,1], color='blue', linewidth=2)
+            plt.plot(map_out[:,0], map_out[:,1], color='blue', linewidth=2)
             plt.plot(wp_in[:,0], wp_in[:,1], color='slategray', linewidth=2, alpha=0.5)
             plt.plot(wp_out[:,0], wp_out[:,1], color='slategray', linewidth=2, alpha=0.5)
 
@@ -565,7 +564,6 @@ def test():
                     plt.plot(path[i].x, path[i].y, "-", color="crimson", linewidth=1.5, alpha=0.6)
 
             plt.plot(path[opt_ind].x, path[opt_ind].y, "o-", color="dodgerblue", linewidth=3)
-
             # plot car
             plot_car(path[opt_ind].x[0], path[opt_ind].y[0], path[opt_ind].yaw[0], steer=0)
 
@@ -574,8 +572,9 @@ def test():
             plt.grid(True)
             plt.xlabel("X [m]")
             plt.ylabel("Y [m]")
-
+            print(si)
             plt.pause(0.01)
+ 
             # input("Press enter to continue...")
 
 
